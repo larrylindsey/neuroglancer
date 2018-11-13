@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {VolumeChunkSource} from 'neuroglancer/sliceview/volume/backend';
+import { RpcId } from 'src/neuroglancer/worker_rpc';
 
 export class DerivedVolumeChunkSourceParameters {
-  originSource: VolumeChunkSource;
+  originSourceRef: {'id': RpcId, 'gen': number};
   static RPC_ID = 'derived/DerivedVolumeChunkSourceParameters';
 }

@@ -18,13 +18,15 @@ import {DerivedVolumeChunkSourceParameters} from 'neuroglancer/datasource/derive
 import {CancellationToken} from 'neuroglancer/util/cancellation';
 import {registerSharedObject} from 'neuroglancer/worker_rpc';
 import {VolumeChunk, VolumeChunkSource} from 'neuroglancer/sliceview/volume/backend';
+import { BrainmapsVolumeChunkSource } from '../brainmaps/backend';
 // import {decodeRawChunk} from 'neuroglancer/sliceview/backend_chunk_decoders/raw';
 
 @registerSharedObject() export class DerivedVolumeChunkSource extends
 (WithParameters(VolumeChunkSource, DerivedVolumeChunkSourceParameters)) {
-  public originVolumeSource: VolumeChunkSource;
 
   download(chunk: VolumeChunk, cancellationToken: CancellationToken) {
-    return this.parameters['originSource'].download(chunk, cancellationToken);
+    if (!this.rpc) { return Promise.reject('Could not get RPC object!'); }
+    let originSource = this.rpc.getRef<BrainmapsVolumeChunkSource>(this.parameters.originSourceRef);
+    return originSource.download(chunk, cancellationToken);
   }
 }
