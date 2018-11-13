@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
+import {productionInstance} from 'neuroglancer/datasource/brainmaps/frontend';
+import {credentialsKey} from 'neuroglancer/datasource/brainmaps/api';
 import {registerProvider} from 'neuroglancer/datasource/default_provider';
 import {DerivedDataSource} from 'neuroglancer/datasource/derived/frontend';
 
-registerProvider('derived', () => new DerivedDataSource());
+registerProvider('derived', options => new DerivedDataSource(
+  productionInstance, options.credentialsManager.getCredentialsProvider(credentialsKey)));

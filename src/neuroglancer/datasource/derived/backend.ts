@@ -18,23 +18,13 @@ import {DerivedVolumeChunkSourceParameters} from 'neuroglancer/datasource/derive
 import {CancellationToken} from 'neuroglancer/util/cancellation';
 import {registerSharedObject} from 'neuroglancer/worker_rpc';
 import {VolumeChunk, VolumeChunkSource} from 'neuroglancer/sliceview/volume/backend';
-import {decodeRawChunk} from 'neuroglancer/sliceview/backend_chunk_decoders/raw';
+// import {decodeRawChunk} from 'neuroglancer/sliceview/backend_chunk_decoders/raw';
 
 @registerSharedObject() export class DerivedVolumeChunkSource extends
 (WithParameters(VolumeChunkSource, DerivedVolumeChunkSourceParameters)) {
+  public originVolumeSource: VolumeChunkSource;
+
   download(chunk: VolumeChunk, cancellationToken: CancellationToken) {
-    this.computeChunkBounds(chunk);
-    const chunkDataSize = chunk.chunkDataSize!;
-    const chunkSize = chunkDataSize[0] * chunkDataSize[1] * chunkDataSize[2];
-    let buffer = new ArrayBuffer(chunkSize);
-    let view = new DataView(buffer);
-    for (let i = 0; i < chunkSize; ++i) {
-      view.setUint8(i, Math.floor(Math.random() * 255));
-    }
-    decodeRawChunk(chunk, buffer);
-    if (cancellationToken.isCanceled) {
-      return Promise.reject('Cancelled');
-    }
-    return Promise.resolve();
+    return this.parameters['originSource'].download(chunk, cancellationToken);
   }
 }

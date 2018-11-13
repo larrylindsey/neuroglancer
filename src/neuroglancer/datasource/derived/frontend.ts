@@ -13,12 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import {BrainmapsCredentialsProvider, BrainmapsInstance} from 'neuroglancer/datasource/brainmaps/api';
+import {Borrowed} from 'neuroglancer/util/disposable';
+import {CancellationToken} from 'neuroglancer/util/cancellation';
 import {ChunkManager, WithParameters} from 'neuroglancer/chunk_manager/frontend';
-import {DataSource} from 'neuroglancer/datasource';
-import {DataType, VolumeChunkSpecification, VolumeSourceOptions, VolumeType} from 'neuroglancer/sliceview/volume/base';
+import {DataSource, GetVolumeOptions} from 'neuroglancer/datasource';
+import {DataType, VolumeSourceOptions, VolumeType} from 'neuroglancer/sliceview/volume/base';
 import {DerivedVolumeChunkSourceParameters} from 'neuroglancer/datasource/derived/base';
 import {MultiscaleVolumeChunkSource as GenericMultiscaleVolumeChunkSource, VolumeChunkSource} from 'neuroglancer/sliceview/volume/frontend';
-import { vec3, mat4 } from 'gl-matrix';
+// import {vec3, mat4} from 'gl-matrix';
+import { BrainmapsDataSource } from '../brainmaps/frontend';
 
 class DerivedVolumeChunkSource extends
 (WithParameters(VolumeChunkSource, DerivedVolumeChunkSourceParameters)) {}
@@ -27,38 +31,26 @@ export class DerivedMultiscaleVolumeChunkSource implements GenericMultiscaleVolu
   numChannels: number;
   dataType: DataType;
   volumeType: VolumeType;
+  chunkManager: ChunkManager;
 
-  constructor(public chunkManager: ChunkManager, public config: string) {
-    this.numChannels = 1;
-    this.dataType = DataType.UINT8;
-    this.volumeType = VolumeType.IMAGE;
+  constructor(public originVolumeChunkSource: GenericMultiscaleVolumeChunkSource, public config: string) {
+    this.numChannels = originVolumeChunkSource.numChannels;
+    this.dataType = originVolumeChunkSource.dataType;
+    this.volumeType = originVolumeChunkSource.volumeType;
+    this.chunkManager = originVolumeChunkSource.chunkManager;
   }
 
   getSources(volumeSourceOptions: VolumeSourceOptions) {
-    const result = VolumeChunkSpecification
-      .getDefaults({
-        voxelSize: vec3.fromValues(4, 4, 4),
-        dataType: this.dataType,
-        numChannels: this.numChannels,
-        transform: mat4.fromTranslation(
-            mat4.create(),
-            vec3.multiply(vec3.create(), vec3.create(), vec3.create())),
-        upperVoxelBound: vec3.fromValues(1024, 1024, 1024),
-        volumeType: this.volumeType,
-        chunkDataSizes: [vec3.fromValues(64, 64, 64)],
-        baseVoxelOffset: vec3.create(),
-        volumeSourceOptions,
-      }).map(spec => this.chunkManager.getChunkSource(
-        DerivedVolumeChunkSource, {
-          spec,
-          parameters: {
-            'baseUrls': 'foo',
-            'path': 'bar',
-            'ecnoding': 'baz'
-          }
+    const originSource = this.originVolumeChunkSource.getSources(volumeSourceOptions)[0][0];
+    const derivedSource = this.chunkManager.getChunkSource(
+      DerivedVolumeChunkSource, {
+        spec: originSource.spec,
+        parameters: {
+          originSource
         }
-      ));
-    return [result];
+      }
+    );
+    return [[derivedSource]];
   }
 
   getMeshSource() { return null; }
@@ -66,11 +58,24 @@ export class DerivedMultiscaleVolumeChunkSource implements GenericMultiscaleVolu
 
 
 export class DerivedDataSource extends DataSource {
-  get description() {
-    return 'Precomputed file-backed data source';
+  originDataSource: DataSource;
+
+  constructor(
+    instance: BrainmapsInstance, credentialsProvider: Borrowed<BrainmapsCredentialsProvider>) {
+      super();
+      this.originDataSource = new BrainmapsDataSource(instance, credentialsProvider);
   }
 
-  getVolume(chunkManager: ChunkManager, config: string) {
-    return new DerivedMultiscaleVolumeChunkSource(chunkManager, config);
+  get description() {
+    return 'Derived from ' + this.originDataSource.description;
+  }
+
+  getVolume(chunkManager: ChunkManager, config: string, options: GetVolumeOptions, cancellationToken: CancellationToken) {
+    return new Promise((resolve) => {
+      const dataSource = this.originDataSource;
+      resolve(dataSource.getVolume && dataSource.getVolume(chunkManager, config, options, cancellationToken));
+    }).then((originVolumeChunkSource: GenericMultiscaleVolumeChunkSource) => {
+      return new DerivedMultiscaleVolumeChunkSource(originVolumeChunkSource, config);
+    });
   }
 }
